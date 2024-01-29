@@ -1,0 +1,532 @@
+---
+title: "**PCA and Clustering**"
+author: "Indrajith Wasala Mudiyanselage"
+output: pdf_document
+
+header-includes: 
+   - \usepackage{float}
+   - \floatplacement{figure}{H}
+geometry: "left=1cm,right=1cm,top=0.5cm,bottom=0.5cm"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 01
+
+```{r include=FALSE}
+# Question 01
+
+library(ISLR)
+Hitters.new<-na.omit(Hitters)
+str(Hitters.new)
+```
+
+## a
+
+I think standardization of the variables before performing the PCA would be a good idea. If ht e data is standardized, the scale of all variables would be the same. Otherwise, the variable with higher variance will have higher wights while other variables with lower variance get lower weights. Also, standardized data would not be affected by the change of units.
+
+## b 
+
+I would recommend the first six principal components as it approximately explains 90% of the total variance. 
+
+```{r include=FALSE}
+# b)
+
+# Create dummy variables
+library(fastDummies)
+str(Hitters.new)
+dummy<-dummy_cols(Hitters.new[,c(14,15,20)])
+Hitter.pred<-cbind(Hitters.new[,-c(14,15,19,20)],dummy[,4:9])
+str(Hitter.pred)
+Hitters.pca <- prcomp(Hitter.pred, center = T, scale = T)
+
+#Get the loading matrix
+Hitters.pca$rotation
+```
+
+```{r,results="asis", echo=FALSE}
+
+library(xtable)
+options(xtable.comment=FALSE)
+xtable(Hitters.pca$rotation[,1:6],caption = "Loadings of forst 6 principal components")
+xtable(summary(Hitters.pca),caption = "Proportion of Variance and Cumulative Proportions of fist 12 principal components")
+```
+
+```{r,echo=FALSE,fig.align="center",fig.cap="Scree plot",  out.width = "60%"}
+# Scree plot
+pc.var <- Hitters.pca$sdev^2
+pve <- pc.var/sum(pc.var)
+plot(pve, xlab = "Principal Component", ylab = "Proportion of Variance Explained", ylim = c(0,1), type = 'b')
+```
+
+## c
+
+```{r,results="asis", echo=FALSE}
+# c)
+
+# Standardize quantitative variables
+x.std <- apply(Hitter.pred[,1:16], 2, function(x){(x-mean(x))/sd(x)})
+xtable(cor(Hitters.pca$x[,c(1,2)],x.std)[,1:8],digits=c(0,3,3,3,3,3,3,3,3))
+xtable(cor(Hitters.pca$x[,c(1,2)],x.std)[,9:16],digits=c(0,3,3,3,3,3,3,3,3), caption = "Correlation of the standardized quantitative variables with the first two components ")
+```
+
+
+```{r,echo=FALSE,fig.align="center",fig.cap="Biplots with observation number and Player names",  out.width = "85%"}
+Hitter.pred.no<-Hitter.pred
+row.names(Hitter.pred.no)<-seq(1:263)
+Hitters.pca.new <- prcomp(Hitter.pred.no, center = T, scale = T)
+par(mfrow=c(1,2))
+biplot(Hitters.pca.new, scale=0)
+biplot(Hitters.pca, scale=0)
+```
+```{r include=FALSE}
+row.names(Hitter.pred)[c(50,55,189)]
+row.names(Hitter.pred)[c(62,258,109)]
+```
+
+
+Based on the above biplot, predictors like CHmRun, CRBI, RBI, CRuns, CAtBat, Years loaded heavily on PC1 while predictors like Runs, AtBat, RBI, HmRun, Walks, League_A, NewLeague_A loaded heavily on PC2. Players like "Don Baylor",    "Darrell Evans", and "Pete Rose" (Observations 50, 55, and 189) score high on PC1. Players like "Don Mattingly", "Wally Joyner" and "Jose Canseco" score high on PC2 (Observations 62, 258, and 109).
+
+\newpage
+
+# Question 02
+
+## a
+
+Standardization of the variables before clustering is dependent on the given scenario. If we would like to allocate larger weights to the variables with high variances, it is better not to standardize variables. Otherwise, in general, standardization is recommended.
+
+## b
+
+Since most of the variables (out of 19 variables) are not strongly correlated, I would use matric-based distance to cluster the players.
+
+```{r include=FALSE}
+########################################################################################################
+# Question 02
+
+# b)
+
+cor(Hitter.pred)
+```
+
+## c
+
+In the first cluster, there are 235 players while 28 players in the second cluster. The mean salary of the first cluster ($ 482.35) is higher than the second cluster($ 985.55). The second cluster means of the variables are higher than the first cluster means of the variables except for the variables Assists, Errors, League_A, Division_E, and NewLeague_A.
+
+
+```{r, include=FALSE}
+# c)
+
+xsc <- scale(Hitter.pred)
+xsc.no <- scale(Hitter.pred.no)
+xsc.hc.complete <- hclust(dist(xsc), method = "complete")
+xsc.hc.no.complete <- hclust(dist(xsc.no), method = "complete")
+players<-cutree(xsc.hc.complete, 2)
+```
+
+```{r,echo=FALSE,fig.align="center",fig.height=6, fig.width=20,fig.cap="Hierarchical Clustering with Scaled Features",  out.width = "100%"}
+plot(xsc.hc.complete, main = "", xlab = "", sub = "", hang = -1, cex = 0.4)
+```
+```{r,results="asis", echo=FALSE}
+print(xtable(table(players), caption = "Number of players in each cluster"),table.placement="H")
+# 1st cluster means of the variables
+First.cluster<-apply(Hitter.pred[players==1,],2,mean)
+# 2nd cluster means of the variables
+Second.cluster<-apply(Hitter.pred[players==2,],2,mean)
+comb.means<-rbind(First.cluster,Second.cluster)
+print(xtable(comb.means[,1:8]),table.placement="H")
+print(xtable(comb.means[,8:16]),table.placement="H")
+print(xtable(comb.means[,17:22],caption = "Cluster means of the variables"),table.placement="H")
+
+salaries<-Hitters.new[,19]
+
+# mean salary of the players in the two clusters
+First.cluster.sal.mean<-mean(salaries[players==1])
+Second.cluster.sal.mean<-mean(salaries[players==2])
+comb.salary<-rbind(First.cluster.sal.mean,Second.cluster.sal.mean)
+colnames(comb.salary)<-"Mean Salary"
+print(xtable(comb.salary,caption = "Mean salary of the players in the two clusters"),table.placement="H")
+```
+
+
+## d
+
+In the first cluster, there are 188 players, while 75 players in the second cluster. The mean salary of the first cluster ($ 380.67) is higher than the second cluster($ 925.11). The second cluster means of the variables are higher than the first cluster means of the variables except for the variables Assists, Errors, League_N, Division_W, and NewLeague_N.
+
+```{r,results="asis", echo=FALSE}
+# d)
+
+# K-means with K = 2
+set.seed(1)
+km.out <- kmeans(xsc, 2, nstart = 20)
+players.km<-km.out$cluster
+
+print(xtable(table(players.km), caption = "Number of players in each cluster (K-means)"))
+
+# Cluster means of the variables
+# 1st cluster means of the variables
+First.km.cluster<-apply(Hitter.pred[players.km==1,],2,mean)
+# 2nd cluster means of the variables
+Second.km.cluster<-apply(Hitter.pred[players.km==2,],2,mean)
+km.comb.means<-rbind(First.km.cluster,Second.km.cluster)
+print(xtable(km.comb.means[,1:8]),table.placement="H")
+print(xtable(km.comb.means[,8:16]),table.placement="H")
+print(xtable(km.comb.means[,17:22],caption = "Cluster means of the variables (K-means)"),table.placement="H")
+
+# mean salary of the players in the two clusters
+First.cluster.sal.mean.km<-mean(salaries[players.km==1])
+Second.cluster.sal.mean.km<-mean(salaries[players.km==2])
+km.comb.salary<-rbind(First.cluster.sal.mean.km,Second.cluster.sal.mean.km)
+colnames(km.comb.salary)<-"Mean Salary"
+print(xtable(km.comb.salary,caption = "Mean salary of the players in the two clusters (K-means)"),table.placement="H")
+
+```
+
+## e
+
+Both methods give very similar clustering. Therefore identifying the better algorithm that gives more sensible results would be a difficult choice.
+
+
+# Question 3
+
+## a  
+
+The Linear regression model was fit and the test MSE is given in the below table 10.
+
+```{r include=FALSE}
+########################################################################################################
+# Question 3
+
+# a)
+set.seed(1)
+library(caret)
+# cross-validation method
+ctrl <- trainControl(method = "LOOCV")
+
+#fit a regression model and use LOOCV to evaluate performance
+linear.fit <- train(log(Salary)~., data = Hitters.new, method = "lm", trControl = ctrl)
+
+#view summary of LOOCV               
+MSE_a<-as.numeric(linear.fit$results[2])^2
+```
+
+
+## b
+
+The PCR model with M chosen optimally via LOOCV was fit. The test MSE is given in the below table 10.
+
+```{r include=FALSE}
+# b)
+
+library(pls)
+# Fit PCR
+set.seed(1)
+pcr.fit <- pcr(log(Salary) ~ ., data = Hitters, scale = TRUE, validation = "LOO")
+
+# To get MSE 
+M1<-which.min(MSEP(pcr.fit)$val[1, 1,])
+MSEP(pcr.fit)
+```
+
+```{r,echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Validation plots for PCR"}
+
+validationplot(pcr.fit, val.type = "MSEP",main="PCR")
+```
+
+## c 
+
+The PLS model with M chosen optimally via LOOCV was fit. The test MSE is given in the below table 10.
+
+```{r include=FALSE}
+# c)
+
+library(pls)
+# Fit PCR
+set.seed(1)
+pls.fit <- plsr(log(Salary) ~ ., data = Hitters.new, scale = TRUE, validation = "LOO")
+
+# To get MSE 
+M2<-which.min(MSEP(pls.fit)$val[1, 1,])
+MSEP(pls.fit)
+```
+
+```{r,echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Validation plots for PLS"}
+validationplot(pls.fit, val.type = "MSEP",main="PLS")
+```
+
+## d 
+
+Ridge regression with penalty parameter chosen optimally via LOOCV was fit. The test MSE is given in the below table 10.
+
+```{r, include=FALSE}
+# d)
+
+# Create response vector and the design matrix (without the first column of 1s) 
+y <- log(Hitters.new$Salary)
+x <- model.matrix(log(Salary) ~ ., Hitters.new)[, -1]
+n<-nrow(Hitters.new)
+grid <- 10^seq(10, -2, length = 100)
+```
+
+```{r, include=FALSE}
+# Use cross-validation to estimate test MSE from training data
+library(glmnet)
+set.seed(1)
+cv.out <- cv.glmnet(x,y, alpha = 0,nfolds=n,grouped = FALSE)
+
+# Find the best value of lambda
+bestlam <- cv.out$lambda.min
+bestlam
+
+# Test MSE for the best value of lambda
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+ridge.pred <- predict(ridge.mod, s = bestlam, newx =x)
+d.mse<-mean((ridge.pred - y)^2)
+```
+
+```{r q1ef,echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Plot of test MSE vs log(lambda) using ridge regression"}
+plot(cv.out)
+```
+
+## e 
+
+According to the table, I would recommend the Ridge regression model as it has the lowest test MSE. On the other, PCR and PSL have similar values for test MSE, while the linear regression approach has the largest test MSE.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrrr}
+\hline
+ & Linear Reg. &  PCR & PLS &  Ridge Reg\\
+\hline
+Test MSE & 0.4214 & 0.4138 &  0.4148 & 0.3607\\
+\hline
+\end{tabular}
+\caption{\textit{Summary of test MSE}}
+\end{table}
+
+\newpage
+
+# R Codes
+
+```{r echo = T, results = 'hide',error=FALSE,warning=FALSE,message=FALSE,eval=FALSE}
+## ----setup, include=FALSE-----------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ----include=FALSE------------------------------------------
+# Question 01
+
+library(ISLR)
+Hitters.new<-na.omit(Hitters)
+str(Hitters.new)
+
+
+## ----include=FALSE------------------------------------------
+# b)
+
+# Create dummy variables
+library(fastDummies)
+str(Hitters.new)
+dummy<-dummy_cols(Hitters.new[,c(14,15,20)])
+Hitter.pred<-cbind(Hitters.new[,-c(14,15,19,20)],dummy[,4:9])
+str(Hitter.pred)
+Hitters.pca <- prcomp(Hitter.pred, center = T, scale = T)
+
+#Get the loading matrix
+Hitters.pca$rotation
+
+
+## ----results="asis", echo=FALSE-----------------------------
+
+library(xtable)
+options(xtable.comment=FALSE)
+xtable(Hitters.pca$rotation[,1:6],caption = "Loadings of forst 6 principal components")
+xtable(summary(Hitters.pca),caption = "Proportion of Variance and Cumulative Proportions of fist 12 principal components")
+
+
+## ----echo=FALSE,fig.align="center",fig.cap="Scree plot",  out.width = "60%"----
+# Scree plot
+pc.var <- Hitters.pca$sdev^2
+pve <- pc.var/sum(pc.var)
+plot(pve, xlab = "Principal Component", ylab = "Proportion of Variance Explained", ylim = c(0,1), type = 'b')
+
+
+## ----results="asis", echo=FALSE-----------------------------
+# c)
+
+# Standardize quantitative variables
+x.std <- apply(Hitter.pred[,1:16], 2, function(x){(x-mean(x))/sd(x)})
+xtable(cor(Hitters.pca$x[,c(1,2)],x.std)[,1:8],digits=c(0,3,3,3,3,3,3,3,3))
+xtable(cor(Hitters.pca$x[,c(1,2)],x.std)[,9:16],digits=c(0,3,3,3,3,3,3,3,3), caption = "Correlation of the standardized quantitative variables with the first two components ")
+
+
+## ----echo=FALSE,fig.align="center",fig.cap="Biplots with observation number and Player names",  out.width = "85%"----
+Hitter.pred.no<-Hitter.pred
+row.names(Hitter.pred.no)<-seq(1:263)
+Hitters.pca.new <- prcomp(Hitter.pred.no, center = T, scale = T)
+par(mfrow=c(1,2))
+biplot(Hitters.pca.new, scale=0)
+biplot(Hitters.pca, scale=0)
+
+## ----include=FALSE------------------------------------------
+row.names(Hitter.pred)[c(50,55,189)]
+row.names(Hitter.pred)[c(62,258,109)]
+
+
+## ----include=FALSE------------------------------------------
+########################################################################################################
+# Question 02
+
+# b)
+
+cor(Hitter.pred)
+
+
+## ---- include=FALSE-----------------------------------------
+# c)
+
+xsc <- scale(Hitter.pred)
+xsc.no <- scale(Hitter.pred.no)
+xsc.hc.complete <- hclust(dist(xsc), method = "complete")
+xsc.hc.no.complete <- hclust(dist(xsc.no), method = "complete")
+players<-cutree(xsc.hc.complete, 2)
+
+
+## ----echo=FALSE,fig.align="center",fig.height=6, fig.width=20,fig.cap="Hierarchical Clustering with Scaled Features",  out.width = "100%"----
+plot(xsc.hc.complete, main = "", xlab = "", sub = "", hang = -1, cex = 0.4)
+
+## ----results="asis", echo=FALSE-----------------------------
+print(xtable(table(players), caption = "Number of players in each cluster"),table.placement="H")
+# 1st cluster means of the variables
+First.cluster<-apply(Hitter.pred[players==1,],2,mean)
+# 2nd cluster means of the variables
+Second.cluster<-apply(Hitter.pred[players==2,],2,mean)
+comb.means<-rbind(First.cluster,Second.cluster)
+print(xtable(comb.means[,1:8]),table.placement="H")
+print(xtable(comb.means[,8:16]),table.placement="H")
+print(xtable(comb.means[,17:22],caption = "Cluster means of the variables"),table.placement="H")
+
+salaries<-Hitters.new[,19]
+
+# mean salary of the players in the two clusters
+First.cluster.sal.mean<-mean(salaries[players==1])
+Second.cluster.sal.mean<-mean(salaries[players==2])
+comb.salary<-rbind(First.cluster.sal.mean,Second.cluster.sal.mean)
+colnames(comb.salary)<-"Mean Salary"
+print(xtable(comb.salary,caption = "Mean salary of the players in the two clusters"),table.placement="H")
+
+
+## ----results="asis", echo=FALSE-----------------------------
+# d)
+
+# K-means with K = 2
+set.seed(1)
+km.out <- kmeans(xsc, 2, nstart = 20)
+players.km<-km.out$cluster
+
+print(xtable(table(players.km), caption = "Number of players in each cluster (K-means)"))
+
+# Cluster means of the variables
+# 1st cluster means of the variables
+First.km.cluster<-apply(Hitter.pred[players.km==1,],2,mean)
+# 2nd cluster means of the variables
+Second.km.cluster<-apply(Hitter.pred[players.km==2,],2,mean)
+km.comb.means<-rbind(First.km.cluster,Second.km.cluster)
+print(xtable(km.comb.means[,1:8]),table.placement="H")
+print(xtable(km.comb.means[,8:16]),table.placement="H")
+print(xtable(km.comb.means[,17:22],caption = "Cluster means of the variables (K-means)"),table.placement="H")
+
+# mean salary of the players in the two clusters
+First.cluster.sal.mean.km<-mean(salaries[players.km==1])
+Second.cluster.sal.mean.km<-mean(salaries[players.km==2])
+km.comb.salary<-rbind(First.cluster.sal.mean.km,Second.cluster.sal.mean.km)
+colnames(km.comb.salary)<-"Mean Salary"
+print(xtable(km.comb.salary,caption = "Mean salary of the players in the two clusters (K-means)"),table.placement="H")
+
+
+
+## ----include=FALSE------------------------------------------
+########################################################################################################
+# Question 3
+
+# a)
+set.seed(1)
+library(caret)
+# cross-validation method
+ctrl <- trainControl(method = "LOOCV")
+
+#fit a regression model and use LOOCV to evaluate performance
+linear.fit <- train(log(Salary)~., data = Hitters.new, method = "lm", trControl = ctrl)
+
+#view summary of LOOCV               
+MSE_a<-as.numeric(linear.fit$results[2])^2
+
+
+## ----include=FALSE------------------------------------------
+# b)
+
+library(pls)
+# Fit PCR
+set.seed(1)
+pcr.fit <- pcr(log(Salary) ~ ., data = Hitters, scale = TRUE, validation = "LOO")
+
+# To get MSE 
+M1<-which.min(MSEP(pcr.fit)$val[1, 1,])
+MSEP(pcr.fit)
+
+
+## ----echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Validation plots for PCR"----
+
+validationplot(pcr.fit, val.type = "MSEP",main="PCR")
+
+
+## ----include=FALSE------------------------------------------
+# c)
+
+library(pls)
+# Fit PCR
+set.seed(1)
+pls.fit <- plsr(log(Salary) ~ ., data = Hitters.new, scale = TRUE, validation = "LOO")
+
+# To get MSE 
+M2<-which.min(MSEP(pls.fit)$val[1, 1,])
+MSEP(pls.fit)
+
+
+## ----echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Validation plots for PLS"----
+validationplot(pls.fit, val.type = "MSEP",main="PLS")
+
+
+## ---- include=FALSE-----------------------------------------
+# d)
+
+# Create response vector and the design matrix (without the first column of 1s) 
+y <- log(Hitters.new$Salary)
+x <- model.matrix(log(Salary) ~ ., Hitters.new)[, -1]
+n<-nrow(Hitters.new)
+grid <- 10^seq(10, -2, length = 100)
+
+
+## ---- include=FALSE-----------------------------------------
+# Use cross-validation to estimate test MSE from training data
+library(glmnet)
+set.seed(1)
+cv.out <- cv.glmnet(x,y, alpha = 0,nfolds=n,grouped = FALSE)
+
+# Find the best value of lambda
+bestlam <- cv.out$lambda.min
+bestlam
+
+# Test MSE for the best value of lambda
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+ridge.pred <- predict(ridge.mod, s = bestlam, newx =x)
+d.mse<-mean((ridge.pred - y)^2)
+
+
+## ----q1ef,echo=FALSE,fig.height=2.5, fig.width=3, fig.cap="Plot of test MSE vs log(lambda) using ridge regression"----
+plot(cv.out)
+
+
+```
+
